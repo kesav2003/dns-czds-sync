@@ -1,0 +1,52 @@
+# Download approved CZDS zone files on a schedule, parse them, and sync to cloud DB.
+# Requires repo secrets: CZDS_USERNAME, CZDS_PASSWORD, DATABASE_URL
+
+name: CZDS sync to cloud DB
+
+on:
+  schedule:
+    # Run daily at 04:00 UTC (adjust as needed)
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+    # Allow manual run from Actions tab
+    inputs:
+      max_tlds:
+        description: "Max TLDs to process this run (default from env)"
+        required: false
+        default: ""
+
+env:
+  PYTHON_VERSION: "3.11"
+  MAX_TLDS: "1000"      # Process up to 10 TLDs per run (avoid timeout; adjust as needed)
+  BATCH_SIZE: "5000"  # Rows per DB insert batch
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330  # 5.5 hours (GitHub max is 6)
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r czds_access_requirements.txt
+          pip install -r requirements-ci.txt
+
+      - name: Run CZDS download and sync to DB
+        env:
+          CZDS_USERNAME: ${{ secrets.CZDS_USERNAME }}
+          CZDS_PASSWORD: ${{ secrets.CZDS_PASSWORD }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MAX_TLDS: ${{ github.event.inputs.max_tlds || '10' }}
+          BATCH_SIZE: ${{ env.BATCH_SIZE }}
+        run: |
+          python scripts/czds_download_and_sync.py
+        continue-on-error: false
