@@ -1,0 +1,3 @@
+# CI / sync script: CZDS deps + DB driver
+-r czds_access_requirements.txt
+psycopg2-binary>=2.9.0
